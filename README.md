@@ -12,4 +12,4 @@ either that or drag the mouse quickly to the top left
 
 
 # More Palletes Will be added
-# Mouse Positions May Vary (Based of 2560 by 1440 minitor)
+# Mouse Positions May Vary (Based off 2560 by 1440 minitor)
