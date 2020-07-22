@@ -18,7 +18,7 @@ def distance(c1, c2):
         c2 = [c2,c2,c2]
     return math.sqrt((c1[0] - c2[0])**2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) **2)
 
-def get_color_positions(img, colors, size):
+def get_color_positions(img, colors,size,dithering=False):
     color_positions = [[] for col in colors]
     color_dict = {}
     px = img.load()
@@ -28,8 +28,23 @@ def get_color_positions(img, colors, size):
             if checking_color in color_dict:
                 color_positions[color_dict[checking_color]].append((x,y))
             else:
-                closest_index = colors.index(sorted(colors, key=lambda color: distance(color, checking_color))[0])
-                color_dict[checking_color] = closest_index
+                closest_colour = sorted(colors, key=lambda color: distance(color, checking_color))[0]
+                if dithering:
+                    quant_error = [a-b for a,b in zip(checking_color,closest_colour)]
+                    if x + 1 < size[0]:
+                        error_col_1 = tuple(int(a+b*7.0/16.0) for a,b in zip(px[x+1,y],quant_error))
+                        px[x+1,y] = error_col_1
+                    if x - 1 > 0 and y + 1 < size[1]:
+                        error_col_2 = tuple(int(a+b*3.0/16.0) for a,b in zip(px[x-1,y+1],quant_error))
+                        px[x-1,y+1] = error_col_2
+                    if y + 1 < size[1]:
+                        error_col_3 = tuple(int(a+b*5.0/16.0) for a,b in zip(px[x,y+1],quant_error))
+                        px[x,y+1] = error_col_3
+                    if x + 1 < size[0] and y + 1 < size[1]:
+                        error_col_4 = tuple(int(a+b*1.0/16.0) for a,b in zip(px[x+1,y+1],quant_error))
+                        px[x+1,y+1] = error_col_4
+                closest_index = colors.index(closest_colour)
+                if not dithering: color_dict[checking_color] = closest_index
                 color_positions[closest_index].append((x,y))
     return color_positions
 
@@ -85,10 +100,16 @@ paint_offset = 5,144
 main_image = Image.open("data/img.png")
 image_size = main_image.size
 colors = load_colours(f"data/palettes/{input('Enter Pallete Name:')}.palette")
-color_positions = get_color_positions(main_image,colors,image_size)
+color_positions = get_color_positions(main_image,colors,image_size,True) if input("Dithering (may slow down processing) [y/n]:") == 'y' else get_color_positions(main_image,colors,image_size)
 color_strokes = [get_strokes(x,single=True) for x in color_positions]
 color_data = sorted([[colors[i],color_positions[i],color_strokes[i]] for i in range(len(colors))], key=lambda k: [len(k[2]), k[1], k[0]],reverse=True)
+
+#! CLEARING SCREEN
 pui.click(paint_offset)
+pui.hotkey('ctrl','a')
+pui.press('del')
+pui.click(244,71)
+
 set_size(image_size)
 paint_strokes = 0
 for index in range(len(color_data)):
