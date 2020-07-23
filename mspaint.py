@@ -1,5 +1,5 @@
 import pyautogui as pui
-import time, random, colorama, math, sys, itertools
+import time, datetime, random, colorama, math, sys, itertools, os, pprint
 from colorama import init, Fore, Style, Back
 from PIL import Image
 ##############################
@@ -7,18 +7,24 @@ from PIL import Image
 #############################
 def load_colours(color_loc):
     colors = []
-    with open(color_loc) as f:
-        for line in f:
-            if '#' in line: colors.append(tuple(int(line.strip('#')[i:i+2], 16) for i in (0, 2, 4)))
-            elif 'rgb' in line: colors.append(tuple(int(x) for x in line.strip('rgb(').replace('\n','').replace(')','').split(',')))
+    with open(color_loc,'rb') as f:
+        while True:
+            b = f.read(3)
+            if not b: break
+            colors.append(tuple(int(b[i]) for i in range(3)))
     return colors
 
 def distance(c1, c2):
     if type(c2) == int:
         c2 = [c2,c2,c2]
-    return math.sqrt((c1[0] - c2[0])**2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) **2)
+    return (c1[0] - c2[0])**2 + (c1[1] - c2[1]) ** 2 + (c1[2] - c2[2]) **2
+
+def stroke_wait(distance):
+    return (max(sys.float_info.epsilon,(distance-810000)/144000000))
 
 def get_color_positions(img, colors,size,dithering=False):
+    start_time = datetime.datetime.now()
+    print(f"Getting Colour Positions: {start_time.strftime('%H:%M:%S.%f')}\r",end='')
     color_positions = [[] for col in colors]
     color_dict = {}
     px = img.load()
@@ -29,7 +35,7 @@ def get_color_positions(img, colors,size,dithering=False):
                 color_positions[color_dict[checking_color]].append((x,y))
             else:
                 closest_colour = sorted(colors, key=lambda color: distance(color, checking_color))[0]
-                if dithering:
+                if dithering: #!DITHERING ALGORITHM
                     quant_error = [a-b for a,b in zip(checking_color,closest_colour)]
                     if x + 1 < size[0]:
                         error_col_1 = tuple(int(a+b*7.0/16.0) for a,b in zip(px[x+1,y],quant_error))
@@ -46,6 +52,7 @@ def get_color_positions(img, colors,size,dithering=False):
                 closest_index = colors.index(closest_colour)
                 if not dithering: color_dict[checking_color] = closest_index
                 color_positions[closest_index].append((x,y))
+    print(f"Sorted Colour Positions: {datetime.datetime.now() - start_time}{' '*12}")
     return color_positions
 
 def set_colour(col):
@@ -93,17 +100,38 @@ def get_strokes(color_positions,current_col=None,single=False):
             strokes.append((start_pos,end_pos))
         pos_index += 1
     return strokes
+
+def select_palette():
+    base_dir = "data/palettes"
+    while True:
+        os.system("cls")
+        items = [os.path.join("/",x) for x in os.listdir(base_dir)]
+        print(f"SELECT COLOR PALETTE\nDir: {base_dir}")
+        for i in range(len(items)):
+            print(f"{i}: {items[i]}")
+        if base_dir != "data/palettes": print(f"{len(items)}: ..")
+        index = int(input("Enter Index: "))
+        if index == len(items) and base_dir != "data/palettes": 
+            base_dir = '/'.join(base_dir.split("/")[:-1])
+        elif ".palette" in items[index]:
+            return base_dir + items[index]
+        else: base_dir += items[index]
 ##############################
 # Main
 #############################
 paint_offset = 5,144
 main_image = Image.open("data/img.png")
 image_size = main_image.size
-colors = load_colours(f"data/palettes/{input('Enter Pallete Name:')}.palette")
-color_positions = get_color_positions(main_image,colors,image_size,True) if input("Dithering (may slow down processing) [y/n]:") == 'y' else get_color_positions(main_image,colors,image_size)
+colors = load_colours(select_palette() if len(sys.argv) < 2 else "data/palettes/" + sys.argv[1] + ".palette")
+os.system("cls")
+dither = input("Dithering (may slow down processing) [y/n]:")
+if dither == 'y': 
+    pass
+color_positions = get_color_positions(main_image,colors,image_size,True) if dither == 'y' else get_color_positions(main_image,colors,image_size)
 color_strokes = [get_strokes(x,single=True) for x in color_positions]
 color_data = sorted([[colors[i],color_positions[i],color_strokes[i]] for i in range(len(colors))], key=lambda k: [len(k[2]), k[1], k[0]],reverse=True)
 
+input("\nPress Enter to draw:")
 #! CLEARING SCREEN
 pui.click(paint_offset)
 pui.hotkey('ctrl','a')
@@ -125,5 +153,5 @@ for index in range(len(color_data)):
             pui.moveTo(stroke[0])
             pui.dragTo(stroke[1])
             paint_strokes += 1
-            time.sleep(sys.float_info.epsilon)
+            time.sleep(stroke_wait(image_size[0]*image_size[1]))
     print(f"Strokes: {paint_strokes}\r",end='')
