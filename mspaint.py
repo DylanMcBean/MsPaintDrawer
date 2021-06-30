@@ -40,7 +40,7 @@ def get_color_positions(img, colors,size,dithering=False):
                     if x + 1 < size[0]:
                         error_col_1 = tuple(int(a+b*7.0/16.0) for a,b in zip(px[x+1,y],quant_error))
                         px[x+1,y] = error_col_1
-                    if x - 1 > 0 and y + 1 < size[1]:
+                    if x > 1 and y + 1 < size[1]:
                         error_col_2 = tuple(int(a+b*3.0/16.0) for a,b in zip(px[x-1,y+1],quant_error))
                         px[x-1,y+1] = error_col_2
                     if y + 1 < size[1]:
@@ -89,13 +89,16 @@ def get_strokes(color_positions,current_col=None,single=False):
         end_pos = color_positions[pos_index][0]+paint_offset[0],color_positions[pos_index][1]+paint_offset[1]
         if not single: contains_current_col = color_positions[pos_index] in current_col
         while True:
-            if pos_index+1 < len(color_positions) and color_positions[pos_index+1][0]+paint_offset[0] == end_pos[0] + 1:
-                pos_index += 1
-                end_pos = color_positions[pos_index][0]+paint_offset[0],color_positions[pos_index][1]+paint_offset[1]
-                if not single and not contains_current_col and color_positions[pos_index] in current_col:
-                    contains_current_col = True
-            else:
+            if (
+                pos_index + 1 >= len(color_positions)
+                or color_positions[pos_index + 1][0] + paint_offset[0]
+                != end_pos[0] + 1
+            ):
                 break
+            pos_index += 1
+            end_pos = color_positions[pos_index][0]+paint_offset[0],color_positions[pos_index][1]+paint_offset[1]
+            if not single and not contains_current_col and color_positions[pos_index] in current_col:
+                contains_current_col = True
         if single or contains_current_col:
             strokes.append((start_pos,end_pos))
         pos_index += 1
@@ -125,8 +128,6 @@ image_size = main_image.size
 colors = load_colours(select_palette() if len(sys.argv) < 2 else "data/palettes/" + sys.argv[1] + ".palette")
 os.system("cls")
 dither = input("Dithering (may slow down processing) [y/n]:")
-if dither == 'y': 
-    pass
 color_positions = get_color_positions(main_image,colors,image_size,True) if dither == 'y' else get_color_positions(main_image,colors,image_size)
 color_strokes = [get_strokes(x,single=True) for x in color_positions]
 color_data = sorted([[colors[i],color_positions[i],color_strokes[i]] for i in range(len(colors))], key=lambda k: [len(k[2]), k[1], k[0]],reverse=True)
